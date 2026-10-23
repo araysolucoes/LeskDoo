@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, Integer, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
-from .inventory import vbox, vbox_executable
+from .inventory import vbox, vbox_executable, virtual_machines
 
 Base=declarative_base()
 class Job(Base):
@@ -194,3 +194,35 @@ def submit(config):
     threading.Thread(target=worker,args=(jid,{**config,'ssh_key':key,'ssh_port':port,
                             'directory':str(directory)}),daemon=True).start()
     return jid
+
+def start_services(job_id, payload):
+    """Operator-controlled stage 2, only on a VM created by this project."""
+    factory=session_factory()
+    with factory() as s:
+        job=s.get(Job,job_id)
+        if job is None:raise ValueError('Job não encontrado')
+        if job.state not in ('created','services_error'):raise ValueError('A VM precisa estar criada antes de instalar serviços')
+        name=job.vm_name
+        if not any(vm['name']==name and vm['state']=='running' for vm in virtual_machines()):
+            raise ValueError('VM gerenciada não está ligada')
+        job.state='services_queued'
+        job.detail='Aguardando instalação do stack'
+        s.commit()
+    username=payload.get('username','')
+    port=payload.get('ssh_port')
+    path=payload.get('private_key_path','')
+    folder=payload.get('vm_directory','')
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]{1,30}',username) or type(port)!=int or not 1024<=port<=65535:
+        update(job_id,'created','Dados SSH inválidos; corrija e repita')
+        raise ValueError('Usuário/porta SSH inválidos')
+    if not folder or not path:
+        update(job_id,'created','Informe pasta da VM e caminho da chave privada')
+        raise ValueError('Dados SSH obrigatórios')
+    def runner():
+        from .guest import deploy
+        try:
+            deploy(username,port,path,folder,lambda state,message:update(job_id,state,message))
+        except Exception as exc:
+            update(job_id,'services_error',str(exc)[:1200])
+    threading.Thread(target=runner,daemon=True).start()
+    return job_id
