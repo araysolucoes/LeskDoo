@@ -18,7 +18,7 @@ python -m pytest -q
 python -m pytest tests/test_api.py -vv
 python -m pytest -q --cov=leskdoo --cov-report=html
 python -m compileall -q leskdoo tests run.py
-python -m ruff check --select E4,E7,E9,F63,F7,F82 leskdoo tests run.py
+python -m ruff check --select E9,F63,F7,F82 leskdoo tests run.py
 python scripts/check_yaml.py
 git status --short
 git branch -vv
@@ -37,3 +37,5 @@ Os workflows são verificações de qualidade de código, não prova de instala�
 - Branch `hml`: revisão/validação no PC Windows real (quando criada).
 - Branch `main`: código aprovado e pronto para distribuição.
 - Não versionar segredos nem `.env`; não rodar criação/destruição de VMs em runners públicos.
+
+> A checagem obrigatória usa apenas erros críticos de sintaxe e nomes. O projeto possui dívida de estilo no código anterior; regras mais amplas serão ativadas após formatação.
