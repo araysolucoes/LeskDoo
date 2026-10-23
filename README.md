@@ -40,3 +40,28 @@ No `.env`, configure `LESDKOO_ALLOW_MUTATIONS=true` **somente em uma instância 
 Próximos passos: validar instalação, descobrir IP/SSH, finalizar Docker/Zabbix/Ollama e healthchecks, gerenciar recovery e aprimorar segurança.
 
 Consultar [Roadmap](docs/ROADMAP.md).
+
+
+## V002 — instalação de serviços (branch dev)
+
+Depois que o job de criação estiver no estado `created`, clique em **Instalar Zabbix + IA** na seção Provisionamentos. Informe o mesmo usuário SSH, a porta NAT, o caminho completo para a chave privada SSH do Windows e a pasta da VM.
+
+A instalação realiza cloud-init status, instala Docker, sobe os contêineres PostgreSQL (Zabbix), Zabbix Server, Zabbix Web, Zabbix Agent2, Ollama e Open WebUI e solicita o modelo `qwen2.5:1.5b`. Requer acesso à internet na VM.
+
+Acessos previstos **no próprio Windows host**, por NAT:
+- Zabbix: http://127.0.0.1:18080
+- Chat: http://127.0.0.1:13000
+- SSH: 127.0.0.1:2222 (ou porta configurada)
+
+O Zabbix possui credenciais iniciais padronizadas pelo próprio produto; altere-as no primeiro acesso. O Open WebUI permite cadastro inicial para criar o primeiro administrador: desative novos cadastros após essa etapa. **Não exponha o ambiente externamente sem autenticação forte, TLS e hardening.**
+
+### Limitações importantes
+1. O provisionamento ainda não foi testado fisicamente no Windows 11 do usuário. Concluído no código não significa instalação validada.
+2. A fila de execução roda em threads do Flask. Reiniciar o servidor interrompe jobs em andamento; o estado fica `interrupted` em PostgreSQL. O operador precisa inspecionar VM e volumes antes de tentar novamente.
+3. Não existem ainda rollback automatizado, limpeza guiada, backup nem monitoramento Zabbix de métricas específicas da IA. O banco registra progresso, mas ainda não implementa CRUD completo.
+4. O download da imagem Ubuntu é validado por SHA256 publicado pelo mesmo servidor Ubuntu. A assinatura criptográfica do manifesto não é verificada.
+5. O `services_started` confirma execução dos comandos Compose e pull do modelo, **não a prontidão HTTP nem teste de inferência end-to-end**.
+6. Não habilite `LESDKOO_ALLOW_MUTATIONS=true` caso outros usuários não confiáveis possam acessar o host ou a aplicação.
+
+### Observação sobre Zabbix
+A instalação usa imagens Zabbix 7.4 em Docker Compose, compatíveis com a linha documentada pelo projeto oficial. Os contêineres podem requerer tempo adicional para inicialização do esquema PostgreSQL.
