@@ -1,0 +1,19 @@
+# Deploy inside Ubuntu VM. CPU-first; do not assume host GPU passthrough.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes: ["ollama:/root/.ollama"]
+    ports: ["127.0.0.1:11434:11434"]
+  webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    depends_on: [ollama]
+    ports: ["${WEBUI_BIND:-127.0.0.1}:3000:8080"]
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?set WEBUI_SECRET_KEY}
+    volumes: ["open-webui:/app/backend/data"]
+volumes:
+  ollama:
+  open-webui:

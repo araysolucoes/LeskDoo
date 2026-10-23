@@ -1,26 +1,37 @@
-# LeskDoo
+# LeskDoo — Aray Soluções
 
-Projeto da Aray Soluções para inventariar Windows 11, gerenciar VirtualBox e provisionar Ubuntu Server com Zabbix e Ollama.
+Plataforma local para inspecionar o Windows 11, detectar recursos de hardware e máquinas virtuais do VirtualBox, recomendar capacidade e futuramente provisionar Ubuntu Server com Zabbix, Ollama e chat integrado.
 
-## Estado: V001 (base inicial)
+## Estado atual: V001
+- Inventário CPU, RAM, GPU, volumes/discos e adaptadores de rede.
+- Detecção de VirtualBox e listagem de VMs, bridges e estado operacional.
+- Recomendação conservadora de RAM, vCPU e disco.
+- Dashboard Flask local; botões de ligar e desligar via ACPI condicionados ao `LESDKOO_ALLOW_MUTATIONS=true`.
+- Modelo de persistência PostgreSQL preparado, porém ainda não conectado ao fluxo completo.
+- Docker Compose inicial para PostgreSQL e Ollama/Open WebUI.
+- Testes unitários básicos do planejador.
 
-A base executável inicial foi preparada para importação no repositório. Inclui dashboard Flask local, inventário de CPU/RAM/GPU/discos/adaptadores, listagem de VMs e bridges VirtualBox, recomendação conservadora de recursos, e comandos start/shutdown ACPI desabilitados por padrão. A versão completa dos arquivos encontra-se no pacote LeskDoo-V001.zip fornecido na conversa de planejamento.
+**Ainda não implementados:** criação automática de VM, cloud-init, provisionamento Ubuntu, SSH, Zabbix, deploy automático de IA, controles completos de autenticação/CSRF e CRUD persistente. Não exponha a interface à rede.
 
-**Importante:** ainda não provisiona Ubuntu, não instala Zabbix/Ollama e não tem autenticação/CSRF. Não exponha a interface na rede.
+## Execução Windows 11
+Requisitos: Python 3.12+, VirtualBox e, para PostgreSQL, Docker/Compose opcional.
 
-## Arquitetura planejada
+```powershell
+git clone https://github.com/araysolucoes/LeskDoo.git
+cd LeskDoo
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+python run.py
+```
 
-- Host: Windows 11, Python, Flask, VBoxManage
-- VM: Ubuntu Server 24.04 LTS, cloud-init, SSH por chave, Docker Compose
-- Monitoramento: Zabbix Server/Agent
-- IA: Ollama CPU-first, Open WebUI
-- Persistência: PostgreSQL e referências a credenciais em cofre seguro
+Acesse http://127.0.0.1:5050 e mantenha `LESDKOO_ALLOW_MUTATIONS=false` até implementar autenticação, CSRF e autorizações robustas.
 
-## Fases
+## Desenvolvimento
+```powershell
+python -m pytest -q
+git pull --ff-only origin main
+```
 
-1. P0: inventário, dashboard, recomendações e segurança da API
-2. P1: criação idempotente de VMs Ubuntu, rede NAT/bridge, cloud-init e SSH
-3. P2: deploy Zabbix, Ollama e Open WebUI
-4. P3: operações CRUD e lifecycle, backups, logs e testes de integração
-
-O desenvolvimento deve ser validado num host Windows 11 com VirtualBox instalado antes de ser considerado pronto para produção.
+Consulte [docs/ROADMAP.md](docs/ROADMAP.md) para o roteiro P0–P3. Não versionar `.env`, chaves privadas ou senhas reais.
