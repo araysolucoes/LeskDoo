@@ -12,6 +12,21 @@ def create_app():
     app.secret_key = os.getenv('LESDKOO_SECRET_KEY') or os.urandom(32)
     app.config['JSON_SORT_KEYS'] = False
 
+    @app.before_request
+    def restrict_local_api():
+        # Prevent browsers on remote pages from using this loopback-only admin panel.
+        # A future remote deployment requires real authentication and TLS.
+        if request.path.startswith('/api/'):
+            if request.remote_addr not in ('127.0.0.1', '::1'):
+                return jsonify({'error': 'API permitida apenas via localhost'}), 403
+            if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+                from urllib.parse import urlsplit
+                origin = request.headers.get('Origin')
+                if origin:
+                    parsed = urlsplit(origin)
+                    if parsed.scheme not in ('http', 'https') or parsed.hostname not in ('localhost', '127.0.0.1', '::1'):
+                        return jsonify({'error': 'Origem não autorizada'}), 403
+
     @app.after_request
     def harden(response):
         response.headers['Cache-Control']='no-store'
@@ -84,6 +99,11 @@ def create_app():
         if action not in ('start','acpi_shutdown'): abort(400)
         current = next((v for v in virtual_machines() if v['uuid'].lower() == uuid.lower()),None)
         if current is None: abort(404)
+        # Do not operate on unrelated machines, even if VirtualBox lists them.
+        from .provision import jobs
+        registered = jobs()
+        if not any(j.get('uuid', '').lower() == uuid.lower() for j in registered if j.get('uuid')):
+            return jsonify({'error': 'VM não gerenciada pelo LeskDoo'}), 403
         if action == 'start' and current['state'] != 'stopped': abort(409)
         if action == 'acpi_shutdown' and current['state'] != 'running': abort(409)
         if action == 'start': vbox(['startvm',uuid,'--type','headless'])
