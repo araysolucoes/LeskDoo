@@ -161,7 +161,11 @@ def deploy(username,port,key_file,folder,update):
         exec_checked(client,'sudo mkdir -p /opt/leskdoo && sudo mv /tmp/leskdoo-compose.yml /opt/leskdoo/compose.yml && sudo mv /tmp/leskdoo.env /opt/leskdoo/.env && sudo chmod 600 /opt/leskdoo/.env')
         update('running','Instalando Docker e iniciando Zabbix, Ollama e Chat...')
         output=exec_checked(client,'bash -se <<\'LESDKOO_SCRIPT\'\n'+SCRIPT+'\nLESDKOO_SCRIPT',timeout=3600)
-        update('services_started','Containers iniciados. Validar healthchecks, login e baixar modelo Ollama.')
+        update('running','Baixando modelo local quantizado qwen2.5:1.5b...')
+        exec_checked(client,'sudo docker compose -f /opt/leskdoo/compose.yml --env-file /opt/leskdoo/.env exec -T ollama ollama pull qwen2.5:1.5b',timeout=3600)
+        update('running','Verificando Ollama e serviços...')
+        exec_checked(client,'sudo docker compose -f /opt/leskdoo/compose.yml --env-file /opt/leskdoo/.env exec -T ollama ollama list')
+        update('services_started','Stack iniciado, modelo qwen2.5:1.5b disponível. Zabbix local: 127.0.0.1:18080 · Chat: 127.0.0.1:13000. Verifique a prontidão das interfaces.')
         return output
     finally:
         client.close()
