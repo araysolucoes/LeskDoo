@@ -126,13 +126,14 @@ def worker(job_id,config):
         with _lock:
             update(job_id,'running','Obtendo imagem oficial Ubuntu 24.04 (SHA256)...')
             if target.exists():raise RuntimeError('Diretório de destino já existe')
-            target.mkdir(parents=True);created=True
+            target.parent.mkdir(parents=True,exist_ok=True)
+            created=True
             image=download_image(Path(config['directory'])/'_leskdoo_cache')
             update(job_id,'running','Gerando imagem de disco e cloud-init...')
-            disk=target/'ubuntu.vdi'
+            disk=target.parent/(name+'-ubuntu.vdi')
             run_vbox('clonemedium','disk',str(image),str(disk),'--format','VDI')
             run_vbox('modifymedium','disk',str(disk),'--resize',str(config['disk_gb']*1024))
-            seed=target/'seed.iso'
+            seed=target.parent/(name+'-seed.iso')
             seed_iso(seed,config['username'],config['ssh_key'],name)
             update(job_id,'running','Registrando VM no VirtualBox...')
             result=run_vbox('createvm','--name',name,'--ostype','Ubuntu_64',
@@ -220,6 +221,12 @@ def start_services(job_id, payload):
     if not folder or not path:
         update(job_id,'created','Informe pasta da VM e caminho da chave privada')
         raise ValueError('Dados SSH obrigatórios')
+    from .guest import validate_ssh_key_path
+    validate_ssh_key_path(path)
+    folder_resolved=Path(folder).expanduser().resolve()
+    if not folder_resolved.is_dir():
+        update(job_id,'created','Pasta da VM não existe')
+        raise ValueError('Pasta da VM não existe')
     def runner():
         from .guest import deploy
         try:
