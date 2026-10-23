@@ -65,7 +65,8 @@ def create_app():
         from .provision import submit
         try:
             payload=request.get_json(silent=True)
-            if not isinstance(payload,dict):abort(400)
+            if not isinstance(payload,dict):
+                return jsonify({'error':'O corpo deve ser um objeto JSON'}),400
             job_id=submit(payload)
             return jsonify({'id':job_id,'state':'queued'}),202
         except ValueError as exc:
@@ -82,7 +83,8 @@ def create_app():
         from .provision import start_services
         try:
             payload=request.get_json(silent=True)
-            if not isinstance(payload,dict):abort(400)
+            if not isinstance(payload,dict):
+                return jsonify({'error':'O corpo deve ser um objeto JSON'}),400
             start_services(job_id,payload)
             return jsonify({'id':job_id,'state':'services_queued'}),202
         except ValueError as exc:
