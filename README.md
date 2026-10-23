@@ -1,37 +1,42 @@
 # LeskDoo — Aray Soluções
 
-Plataforma local para inspecionar o Windows 11, detectar recursos de hardware e máquinas virtuais do VirtualBox, recomendar capacidade e futuramente provisionar Ubuntu Server com Zabbix, Ollama e chat integrado.
+Gerenciador local de VirtualBox para Windows 11 com inventário, recomendações e provisionamento inicial de Ubuntu Server 24.04.
 
-## Estado atual: V001
-- Inventário CPU, RAM, GPU, volumes/discos e adaptadores de rede.
-- Detecção de VirtualBox e listagem de VMs, bridges e estado operacional.
-- Recomendação conservadora de RAM, vCPU e disco.
-- Dashboard Flask local; botões de ligar e desligar via ACPI condicionados ao `LESDKOO_ALLOW_MUTATIONS=true`.
-- Modelo de persistência PostgreSQL preparado, porém ainda não conectado ao fluxo completo.
-- Docker Compose inicial para PostgreSQL e Ollama/Open WebUI.
-- Testes unitários básicos do planejador.
+## V002 (branch dev, em revisão)
 
-**Ainda não implementados:** criação automática de VM, cloud-init, provisionamento Ubuntu, SSH, Zabbix, deploy automático de IA, controles completos de autenticação/CSRF e CRUD persistente. Não exponha a interface à rede.
+- Dashboard redesenhado com cards de hardware, VM, armazenamento e estado dos jobs.
+- Assistente **Nova máquina virtual**, com nome, usuário Linux, RAM, vCPU, disco, volume, porta NAT e chave pública SSH.
+- Job registrado em PostgreSQL com estados queued/running/created/error/interrupted.
+- Download de imagem Ubuntu 24.04 VMDK com checagem SHA256, criação de VDI, ISO NoCloud, configuração de rede NAT e inicialização no VirtualBox.
+- As VMs preexistentes são apenas listadas, nunca apagadas pelo provisionador.
+- Instaladores automáticos de Zabbix, Ollama e Open WebUI **ainda não implementados**. Estado created significa VM iniciada, não sistema operacional ou SSH validados.
 
-## Execução Windows 11
-Requisitos: Python 3.12+, VirtualBox e, para PostgreSQL, Docker/Compose opcional.
+### Requisitos
+
+Windows 11, Python 3.12+, Oracle VirtualBox com VBoxManage e PostgreSQL acessível.
 
 ```powershell
-git clone https://github.com/araysolucoes/LeskDoo.git
-cd LeskDoo
+git fetch origin
+git switch dev
+git pull --ff-only origin dev
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
-python run.py
 ```
 
-Acesse http://127.0.0.1:5050 e mantenha `LESDKOO_ALLOW_MUTATIONS=false` até implementar autenticação, CSRF e autorizações robustas.
+Inicie PostgreSQL (por exemplo, `docker compose --env-file .env -f deploy/compose.postgres.yml up -d` após configurar POSTGRES_PASSWORD), e defina DATABASE_URL com os mesmos dados.
 
-## Desenvolvimento
+Para chave SSH pública:
 ```powershell
-python -m pytest -q
-git pull --ff-only origin main
+ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\leskdoo" -C "leskdoo"
+Get-Content "$env:USERPROFILE\.ssh\leskdoo.pub"
 ```
 
-Consulte [docs/ROADMAP.md](docs/ROADMAP.md) para o roteiro P0–P3. Não versionar `.env`, chaves privadas ou senhas reais.
+No `.env`, configure `LESDKOO_ALLOW_MUTATIONS=true` **somente em uma instância local de confiança**. Suba com `python run.py` e acesse http://127.0.0.1:5050.
+
+**Atenção:** esta é uma versão de desenvolvimento, sem controle de sessão autenticada, fila persistente de trabalhadores ou CSRF completo. Não publique o painel na internet ou LAN. As operações de provisionamento são reais, mas ainda não foram validadas num host Windows físico com VirtualBox. Confirme snapshots/backups antes de testar. Ao reiniciar a aplicação um job interrompido não é reexecutado automaticamente.
+
+Próximos passos: validar instalação, descobrir IP/SSH, finalizar Docker/Zabbix/Ollama e healthchecks, gerenciar recovery e aprimorar segurança.
+
+Consultar [Roadmap](docs/ROADMAP.md).
