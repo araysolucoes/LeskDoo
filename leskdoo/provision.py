@@ -115,7 +115,7 @@ def seed_iso(path,username,ssh_key,hostname):
     iso.new(interchange_level=3,vol_ident='cidata',joliet=3,rock_ridge='1.09')
     for name,data in [('user-data',user_data),('meta-data',meta)]:
         binary=data.encode('utf-8')
-        iso.add_fp(io.BytesIO(binary),len(binary),iso_path='/'+name.upper()+';1',
+        iso.add_fp(io.BytesIO(binary),len(binary),iso_path='/'+name.upper().replace('-', '_')+';1',
                    rr_name=name,joliet_path='/'+name)
     iso.write(str(path));iso.close()
 
