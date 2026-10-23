@@ -144,6 +144,8 @@ def worker(job_id,config):
                      '--cpus',str(config['vcpus']),'--nic1','nat',
                      '--natpf1','ssh,tcp,127.0.0.1,'+str(config['ssh_port'])+',,22',
                      '--boot1','disk','--boot2','dvd')
+            run_vbox('modifyvm',vmid,'--natpf1','zabbixweb,tcp,127.0.0.1,18080,,8080')
+            run_vbox('modifyvm',vmid,'--natpf1','leskdoo-chat,tcp,127.0.0.1,13000,,3000')
             run_vbox('storagectl',vmid,'--name','SATA','--add','sata','--controller','IntelAhci')
             run_vbox('storageattach',vmid,'--storagectl','SATA','--port','0',
                      '--device','0','--type','hdd','--medium',str(disk))
