@@ -58,6 +58,23 @@ def create_app():
         except Exception as exc:
             return jsonify({'error':str(exc)}),503
 
+    @app.post('/api/jobs/<job_id>/services')
+    def deploy_services(job_id):
+        if os.getenv('LESDKOO_ALLOW_MUTATIONS','false').lower()!='true':
+            return jsonify({'error':'Mutações estão desativadas'}),403
+        if not re.fullmatch(r'[0-9a-f]{24}',job_id):
+            abort(400)
+        from .provision import start_services
+        try:
+            payload=request.get_json(silent=True)
+            if not isinstance(payload,dict):abort(400)
+            start_services(job_id,payload)
+            return jsonify({'id':job_id,'state':'services_queued'}),202
+        except ValueError as exc:
+            return jsonify({'error':str(exc)}),422
+        except Exception as exc:
+            return jsonify({'error':str(exc)}),503
+
     @app.post('/api/vms/<uuid>/power')
     def vm_power(uuid):
         if os.getenv('LESDKOO_ALLOW_MUTATIONS', 'false').lower() != 'true':
