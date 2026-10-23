@@ -136,9 +136,10 @@ def ssh_session(username,port,key_file,known_hosts):
 
 def exec_checked(client,cmd,timeout=1800):
     stdin,stdout,stderr=client.exec_command(cmd,timeout=timeout)
-    rc=stdout.channel.recv_exit_status()
+    stdout.channel.set_combine_stderr(True)
     out=stdout.read().decode('utf-8',errors='replace')
-    err=stderr.read().decode('utf-8',errors='replace')
+    rc=stdout.channel.recv_exit_status()
+    err=''
     if rc:
         raise RuntimeError(f"Etapa Linux falhou ({rc}): {(err or out)[-1600:]}")
     return out
@@ -165,7 +166,24 @@ def deploy(username,port,key_file,folder,update):
         exec_checked(client,'sudo docker compose -f /opt/leskdoo/compose.yml --env-file /opt/leskdoo/.env exec -T ollama ollama pull qwen2.5:1.5b',timeout=3600)
         update('running','Verificando Ollama e serviços...')
         exec_checked(client,'sudo docker compose -f /opt/leskdoo/compose.yml --env-file /opt/leskdoo/.env exec -T ollama ollama list')
-        update('services_started','Stack iniciado, modelo qwen2.5:1.5b disponível. Zabbix local: 127.0.0.1:18080 · Chat: 127.0.0.1:13000. Verifique a prontidão das interfaces.')
+        update('running','Executando healthchecks de Zabbix, Chat e inferência local...')
+        exec_checked(client, """python3 - <<'PY'
+import json,time,urllib.request
+targets={'Zabbix':'http://127.0.0.1:8080/','Chat':'http://127.0.0.1:3000/'}
+for name,url in targets.items():
+    for attempt in range(45):
+        try:
+            with urllib.request.urlopen(url,timeout=8) as res:
+                if res.status < 500:break
+        except Exception:pass
+        time.sleep(4)
+    else:raise SystemExit(name+' indisponível')
+data=json.dumps({'model':'qwen2.5:1.5b','prompt':'Responda apenas OK','stream':False}).encode()
+req=urllib.request.Request('http://127.0.0.1:11434/api/generate',data=data,headers={'Content-Type':'application/json'})
+# Ollama runs without a published guest-host port: query through container instead.
+PY""")
+        exec_checked(client, 'sudo docker compose -f /opt/leskdoo/compose.yml --env-file /opt/leskdoo/.env exec -T ollama ollama run qwen2.5:1.5b "Responda OK" ',timeout=180)
+        update('services_started','HTTP Zabbix/Chat acessível e inferência executada. Zabbix: http://127.0.0.1:18080 · Chat: http://127.0.0.1:13000')
         return output
     finally:
         client.close()
