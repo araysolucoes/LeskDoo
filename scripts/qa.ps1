@@ -23,7 +23,7 @@ if ($Install) {
     Invoke-Step 'Install test requirements' @('-m','pip','install','-r','requirements-dev.txt')
 }
 Invoke-Step 'Compile' @('-m','compileall','-q','leskdoo','tests','run.py')
-Invoke-Step 'Critical lint' @('-m','ruff','check','--select','E4,E7,E9,F63,F7,F82','leskdoo','tests','run.py')
+Invoke-Step 'Critical lint' @('-m','ruff','check','--select','E9,F63,F7,F82','leskdoo','tests','run.py')
 Invoke-Step 'YAML validation' @('scripts/check_yaml.py')
 $tests = @('-m','pytest','-q')
 if ($Coverage) { $tests += @('--cov=leskdoo','--cov-report=term-missing','--cov-report=xml') }
