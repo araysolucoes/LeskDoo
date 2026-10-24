@@ -1,6 +1,7 @@
 """LeskDoo Flask application - local management dashboard."""
 import os
 import re
+import hmac
 from flask import Flask, jsonify, render_template, request, abort
 from .inventory import host_inventory, virtual_machines, network_interfaces, vbox
 from .planner import recommend
@@ -14,6 +15,19 @@ def create_app():
 
     @app.before_request
     def restrict_local_api():
+        # Require an administrator password for the dashboard and every API
+        # route when mutations are enabled. Browser HTTP Basic auth keeps
+        # subsequent same-origin fetch() requests authenticated.
+        if os.getenv('LESDKOO_ALLOW_MUTATIONS', 'false').lower() == 'true' and not app.config['TESTING']:
+            from flask import Response
+            password = os.getenv('LESDKOO_ADMIN_PASSWORD')
+            if not password:
+                return jsonify({'error': 'Defina LESDKOO_ADMIN_PASSWORD antes de ativar mutações'}), 503
+            auth = request.authorization
+            if not auth or auth.type != 'basic' or auth.username != 'admin' or not hmac.compare_digest(auth.password or '', password):
+                return Response('Autenticação administrativa necessária', 401, {
+                    'WWW-Authenticate': 'Basic realm="LeskDoo"'
+                })
         # Prevent browsers on remote pages from using this loopback-only admin panel.
         # A future remote deployment requires real authentication and TLS.
         if request.path.startswith('/api/'):
