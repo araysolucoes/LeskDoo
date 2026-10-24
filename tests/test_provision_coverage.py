@@ -139,7 +139,7 @@ def test_submit_success(submit_env):
 
 
 @pytest.mark.parametrize("field,value,message",[
-    ("name","bad","Nome"),("username","INVALID","Usuário"),
+    ("name","x","Nome"),("username","INVALID","Usuário"),
     ("ssh_key","not-a-key","chave pública"),("ram_gb",1,"ram_gb"),
     ("ram_gb",True,"ram_gb"),("vcpus",15,"vcpus"),
     ("disk_gb",10,"disk_gb"),("ssh_port",80,"Porta SSH"),
