@@ -185,3 +185,14 @@ def test_submit_disallowed_disk(submit_env,monkeypatch):
     monkeypatch.setattr(inventory,"host_inventory",lambda:{"disks":[{"mount":"D:/","free_gb":1}]})
     with pytest.raises(ValueError,match="espaço"):
         provision.submit(config)
+
+
+def test_submit_requires_absolute_windows_volume(submit_env, monkeypatch):
+    config, busy, starts, factory = submit_env
+    class InvalidPath(FakePath):
+        def is_absolute(self):
+            return False
+    monkeypatch.setattr(provision, "Path", InvalidPath)
+    with pytest.raises(ValueError, match="diretório absoluto"):
+        provision.submit(config)
+    assert not starts
