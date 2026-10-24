@@ -33,9 +33,9 @@ ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\leskdoo" -C "leskdoo"
 Get-Content "$env:USERPROFILE\.ssh\leskdoo.pub"
 ```
 
-No `.env`, configure `LESDKOO_ALLOW_MUTATIONS=true` **somente em uma instância local de confiança**. Suba com `python run.py` e acesse http://127.0.0.1:5050.
+No `.env`, configure `LESDKOO_ADMIN_PASSWORD` com uma senha longa e exclusiva antes de usar `LESDKOO_ALLOW_MUTATIONS=true`. Ao abrir o painel, o navegador solicitará usuário **admin** e essa senha (autenticação HTTP Basic). O servidor só permite escutar em localhost; não exponha o painel em rede pública. Suba com `python run.py` e acesse http://127.0.0.1:5050.
 
-**Atenção:** esta é uma versão de desenvolvimento, sem controle de sessão autenticada, fila persistente de trabalhadores ou CSRF completo. Não publique o painel na internet ou LAN. As operações de provisionamento são reais, mas ainda não foram validadas num host Windows físico com VirtualBox. Confirme snapshots/backups antes de testar. Ao reiniciar a aplicação um job interrompido não é reexecutado automaticamente.
+**Atenção:** esta é uma versão de desenvolvimento, com autenticação HTTP Basic local, mas ainda sem fila persistente de trabalhadores ou CSRF completo. Não publique o painel na internet ou LAN. As operações de provisionamento são reais, mas ainda não foram validadas num host Windows físico com VirtualBox. Confirme snapshots/backups antes de testar. Ao reiniciar a aplicação um job interrompido não é reexecutado automaticamente.
 
 Próximos passos: validar instalação, descobrir IP/SSH, finalizar Docker/Zabbix/Ollama e healthchecks, gerenciar recovery e aprimorar segurança.
 
