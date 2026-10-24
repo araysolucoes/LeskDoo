@@ -1,6 +1,7 @@
-"""First milestone: read-only dashboard and deliberately gated VM power actions."""
+"""LeskDoo Flask application - local management dashboard."""
 import os
 import re
+import hmac
 from flask import Flask, jsonify, render_template, request, abort
 from .inventory import host_inventory, virtual_machines, network_interfaces, vbox
 from .planner import recommend
@@ -11,6 +12,41 @@ def create_app():
     app = Flask(__name__, template_folder='../templates')
     app.secret_key = os.getenv('LESDKOO_SECRET_KEY') or os.urandom(32)
     app.config['JSON_SORT_KEYS'] = False
+
+    @app.before_request
+    def restrict_local_api():
+        # Require an administrator password for the dashboard and every API
+        # route when mutations are enabled. Browser HTTP Basic auth keeps
+        # subsequent same-origin fetch() requests authenticated.
+        if os.getenv('LESDKOO_ALLOW_MUTATIONS', 'false').lower() == 'true' and not app.config['TESTING']:
+            from flask import Response
+            password = os.getenv('LESDKOO_ADMIN_PASSWORD')
+            if not password:
+                return jsonify({'error': 'Defina LESDKOO_ADMIN_PASSWORD antes de ativar mutações'}), 503
+            auth = request.authorization
+            if not auth or auth.type != 'basic' or auth.username != 'admin' or not hmac.compare_digest(auth.password or '', password):
+                return Response('Autenticação administrativa necessária', 401, {
+                    'WWW-Authenticate': 'Basic realm="LeskDoo"'
+                })
+        # Prevent browsers on remote pages from using this loopback-only admin panel.
+        # A future remote deployment requires real authentication and TLS.
+        if request.path.startswith('/api/'):
+            if request.remote_addr not in ('127.0.0.1', '::1'):
+                return jsonify({'error': 'API permitida apenas via localhost'}), 403
+            if request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+                from urllib.parse import urlsplit
+                origin = request.headers.get('Origin')
+                if origin:
+                    parsed = urlsplit(origin)
+                    if parsed.scheme not in ('http', 'https') or parsed.hostname not in ('localhost', '127.0.0.1', '::1'):
+                        return jsonify({'error': 'Origem não autorizada'}), 403
+
+    @app.after_request
+    def harden(response):
+        response.headers['Cache-Control']='no-store'
+        response.headers['X-Content-Type-Options']='nosniff'
+        response.headers['X-Frame-Options']='DENY'
+        return response
 
     @app.get('/')
     def dashboard():
@@ -27,15 +63,63 @@ def create_app():
         return jsonify({'host':host, 'recommendation':recommend(host),'vms':vms,
                         'bridged_interfaces':bridges,'warnings':warnings})
 
+    @app.get('/api/jobs')
+    def job_list():
+        try:
+            from .provision import jobs
+            return jsonify({'jobs':jobs()})
+        except Exception as exc:
+            return jsonify({'jobs':[], 'error':str(exc)}),503
+
+    @app.post('/api/jobs')
+    def create_job():
+        if os.getenv('LESDKOO_ALLOW_MUTATIONS','false').lower()!='true':
+            return jsonify({'error':'Habilite LESDKOO_ALLOW_MUTATIONS=true no .env para provisionar'}),403
+        # Loopback-only deployment required. This is NOT suitable for exposed LAN access.
+        from .provision import submit
+        try:
+            payload=request.get_json(silent=True)
+            if not isinstance(payload,dict):
+                return jsonify({'error':'O corpo deve ser um objeto JSON'}),400
+            job_id=submit(payload)
+            return jsonify({'id':job_id,'state':'queued'}),202
+        except ValueError as exc:
+            return jsonify({'error':str(exc)}),422
+        except Exception as exc:
+            return jsonify({'error':str(exc)}),503
+
+    @app.post('/api/jobs/<job_id>/services')
+    def deploy_services(job_id):
+        if os.getenv('LESDKOO_ALLOW_MUTATIONS','false').lower()!='true':
+            return jsonify({'error':'Mutações estão desativadas'}),403
+        if not re.fullmatch(r'[0-9a-f]{24}',job_id):
+            abort(400)
+        from .provision import start_services
+        try:
+            payload=request.get_json(silent=True)
+            if not isinstance(payload,dict):
+                return jsonify({'error':'O corpo deve ser um objeto JSON'}),400
+            start_services(job_id,payload)
+            return jsonify({'id':job_id,'state':'services_queued'}),202
+        except ValueError as exc:
+            return jsonify({'error':str(exc)}),422
+        except Exception as exc:
+            return jsonify({'error':str(exc)}),503
+
     @app.post('/api/vms/<uuid>/power')
     def vm_power(uuid):
         if os.getenv('LESDKOO_ALLOW_MUTATIONS', 'false').lower() != 'true':
-            return jsonify({'error':'Operações destrutivas desabilitadas no .env'}),403
+            return jsonify({'error':'Operações desabilitadas no .env'}),403
         if not UUID.fullmatch(uuid): abort(400)
         action = (request.get_json(silent=True) or {}).get('action')
         if action not in ('start','acpi_shutdown'): abort(400)
         current = next((v for v in virtual_machines() if v['uuid'].lower() == uuid.lower()),None)
         if current is None: abort(404)
+        # Do not operate on unrelated machines, even if VirtualBox lists them.
+        from .provision import jobs
+        registered = jobs()
+        if not any(j.get('uuid', '').lower() == uuid.lower() for j in registered if j.get('uuid')):
+            return jsonify({'error': 'VM não gerenciada pelo LeskDoo'}), 403
         if action == 'start' and current['state'] != 'stopped': abort(409)
         if action == 'acpi_shutdown' and current['state'] != 'running': abort(409)
         if action == 'start': vbox(['startvm',uuid,'--type','headless'])
